@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Modern ESP32 and DHT11 IoT Environmental Monitoring Dashboard using Web Serial API.">
+  <title>ESP32 Environment Monitor</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- App Wrapper -->
+  <div class="dashboard-wrapper">
+
+    <!-- Top Navigation / Header -->
+    <header class="dashboard-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <!-- ESP32 / Microchip Icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+            <rect x="9" y="9" width="6" height="6"></rect>
+            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"></path>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>ESP32 Environment Monitor</h1>
+          <p class="subtitle">Live DHT11 IoT Sensor Telemetry via Web Serial</p>
+        </div>
+      </div>
+
+      <!-- Controls & Status Bar -->
+      <div class="header-actions">
+        <!-- Live Connection Status Badge -->
+        <div id="statusBadge" class="status-badge status-disconnected">
+          <span class="status-dot"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+
+        <!-- Serial Connect / Disconnect Buttons -->
+        <button id="connectBtn" class="btn btn-primary" type="button">
+          <!-- USB Icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1"></circle>
+            <path d="M12 1v10"></path>
+            <path d="M12 21a2 2 0 0 0 2-2v-2h-4v2a2 2 0 0 0 2 2z"></path>
+            <path d="M7.5 8H6a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h1.5"></path>
+            <path d="M16.5 8H18a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1.5"></path>
+          </svg>
+          <span>Connect ESP32</span>
+        </button>
+
+        <button id="disconnectBtn" class="btn btn-secondary" type="button" disabled>
+          <!-- Power / Disconnect Icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+            <line x1="12" y1="2" x2="12" y2="12"></line>
+          </svg>
+          <span>Disconnect</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Browser Compatibility Warning (Shown only if Web Serial is unsupported) -->
+    <section id="serialWarning" class="alert-banner alert-warning" style="display: none;">
+      <div class="alert-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <div class="alert-content">
+        <strong>Web Serial API Not Supported in this Browser</strong>
+        <p>The Web Serial API allows direct USB communication with your ESP32. Please open this page using <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, or <strong>Opera</strong> on desktop (over localhost or HTTPS).</p>
+      </div>
+    </section>
+
+    <!-- Notification Toast / Message Bar -->
+    <div id="noticeToast" class="notice-toast" style="display: none;">
+      <span id="noticeMessage">Ready</span>
+      <button id="noticeClose" aria-label="Dismiss message">&times;</button>
+    </div>
+
+    <!-- Main Dashboard Grid -->
+    <main class="dashboard-content">
+
+      <!-- SECTION 1: Live Sensor Cards (Temperature & Humidity) -->
+      <section class="sensor-cards-grid" aria-label="Current Sensor Readings">
+        
+        <!-- Temperature Card (Blue Accent) -->
+        <article class="sensor-card card-temperature">
+          <div class="card-header">
+            <div class="sensor-title-group">
+              <span class="sensor-tag">Sensor 01</span>
+              <h2>Temperature</h2>
+            </div>
+            <div class="card-icon-container temp-icon-bg">
+              <!-- Thermometer Icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card-value-display">
+            <span id="tempValue" class="value-placeholder">--</span>
+            <span class="unit">°C</span>
+          </div>
+
+          <div class="card-footer">
+            <div class="status-indicator">
+              <span class="indicator-dot temp-dot"></span>
+              <span id="tempStatusText">Awaiting serial stream</span>
+            </div>
+            <span class="metric-label">Ambient Air</span>
+          </div>
+        </article>
+
+        <!-- Humidity Card (Teal Accent) -->
+        <article class="sensor-card card-humidity">
+          <div class="card-header">
+            <div class="sensor-title-group">
+              <span class="sensor-tag">Sensor 02</span>
+              <h2>Relative Humidity</h2>
+            </div>
+            <div class="card-icon-container humidity-icon-bg">
+              <!-- Droplet Icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card-value-display">
+            <span id="humidityValue" class="value-placeholder">--</span>
+            <span class="unit">%</span>
+          </div>
+
+          <div class="card-footer">
+            <div class="status-indicator">
+              <span class="indicator-dot humidity-dot"></span>
+              <span id="humidityStatusText">Awaiting serial stream</span>
+            </div>
+            <span class="metric-label">Moisture Level</span>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- SECTION 2: Device Information & Environment Insights -->
+      <section class="info-insights-grid">
+        
+        <!-- Device Information Card -->
+        <div class="panel-card device-info-card">
+          <div class="panel-header">
+            <div class="panel-title-wrapper">
+              <!-- Hardware / Info Icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <h3>Device Specifications</h3>
+            </div>
+            <span class="pill-badge">Hardware</span>
+          </div>
+
+          <div class="specs-grid">
+            <div class="spec-item">
+              <span class="spec-label">Microcontroller</span>
+              <span class="spec-value">ESP32 Dev Module</span>
+            </div>
+
+            <div class="spec-item">
+              <span class="spec-label">Sensor Model</span>
+              <span class="spec-value">DHT11 Temperature &amp; Humidity</span>
+            </div>
+
+            <div class="spec-item">
+              <span class="spec-label">Interface</span>
+              <span class="spec-value">USB Serial (Web Serial API)</span>
+            </div>
+
+            <div class="spec-item">
+              <span class="spec-label">Serial Baud Rate</span>
+              <span class="spec-value code-accent">115200 bps</span>
+            </div>
+
+            <div class="spec-item">
+              <span class="spec-label">Sampling Interval</span>
+              <span class="spec-value">~2.0 Seconds</span>
+            </div>
+
+            <div class="spec-item">
+              <span class="spec-label">Packets Received</span>
+              <span id="packetsCount" class="spec-value code-accent">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry & Stream Status Card -->
+        <div class="panel-card telemetry-card">
+          <div class="panel-header">
+            <div class="panel-title-wrapper">
+              <!-- Activity / Pulse Icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              <h3>Stream Diagnostics</h3>
+            </div>
+            <span id="streamActiveBadge" class="pill-badge badge-idle">Idle</span>
+          </div>
+
+          <div class="telemetry-body">
+            <div class="telemetry-stat">
+              <span class="stat-caption">Last Packet Time</span>
+              <span id="lastUpdateTimestamp" class="stat-highlight">--:--:--</span>
+            </div>
+            <div class="telemetry-stat">
+              <span class="stat-caption">Comfort Level</span>
+              <span id="comfortIndex" class="stat-highlight">--</span>
+            </div>
+            <div class="raw-data-box">
+              <div class="raw-header">
+                <span>Latest Raw JSON Payload:</span>
+              </div>
+              <code id="lastRawJson">{"temperature": --, "humidity": --}</code>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- SECTION 3: Live Readings Table (Latest 10 Readings) -->
+      <section class="table-section">
+        <div class="panel-card">
+          <div class="table-card-header">
+            <div>
+              <h3>Recent Readings History</h3>
+              <p class="table-subtitle">Displaying the most recent 10 sensor measurements with timestamps</p>
+            </div>
+            <div class="table-actions">
+              <span class="readings-counter" id="readingsCounterBadge">0 / 10 Recorded</span>
+              <button id="clearHistoryBtn" class="btn btn-sm btn-ghost" title="Clear table history">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table" id="readingsTable">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">#</th>
+                  <th>Timestamp</th>
+                  <th>Temperature (°C)</th>
+                  <th>Humidity (%)</th>
+                  <th>Environment Status</th>
+                </tr>
+              </thead>
+              <tbody id="readingsTableBody">
+                <tr id="emptyTableRow" class="empty-row">
+                  <td colspan="5">
+                    <div class="empty-state">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M16 16s-1.5-2-4-2-4 2-4 2"></path>
+                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                      </svg>
+                      <p>No sensor readings received yet.</p>
+                      <span>Click <strong>Connect ESP32</strong> and select your serial COM port to begin streaming.</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+      <p>ESP32 &bull; DHT11 Sensor Monitor &bull; Web Serial API &bull; Baud Rate: 115200</p>
+    </footer>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
